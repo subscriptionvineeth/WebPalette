@@ -58,9 +58,8 @@ const URLShortener: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      // Using a mock API response since we don't have a real URL shortening service
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const shortened = `https://short.url/${Math.random().toString(36).substr(2, 6)}`;
+      const response = await axios.get(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`);
+      const shortened = response.data;
       setShortUrl(shortened);
       saveToHistory(url, shortened);
     } catch (err) {
