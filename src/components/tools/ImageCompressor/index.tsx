@@ -13,10 +13,11 @@ const ImageCompressor: React.FC = () => {
   const [outputImage, setOutputImage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'resize' | 'crop' | 'transform'>('resize');
   const [format, setFormat] = useState<'jpeg' | 'png' | 'webp'>('webp');
+  // Add quality state if not already present
   const [quality, setQuality] = useState(80);
   const [rotation, setRotation] = useState(0);
   const [flip, setFlip] = useState({ horizontal: false, vertical: false });
-  const [crop, setCrop] = useState<Crop>({});
+  const [crop, setCrop] = useState<Crop>({ unit: '%', width: 0, height: 0, x: 0, y: 0 });
   const [isCropping, setIsCropping] = useState(false);
   const [resizeOptions, setResizeOptions] = useState<ResizeOptions>({
     type: 'dimensions',
@@ -64,22 +65,22 @@ const ImageCompressor: React.FC = () => {
     },
     multiple: false
   });
-
+  // Fix percentage resize
   const handleResize = () => {
     if (!imageRef.current || !canvasRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
+  
     let newWidth, newHeight;
     if (resizeOptions.type === 'percentage') {
-      newWidth = imageRef.current.naturalWidth * (resizeOptions.percentage / 100);
-      newHeight = imageRef.current.naturalHeight * (resizeOptions.percentage / 100);
+      newWidth = Math.floor(imageRef.current.naturalWidth * (resizeOptions.percentage / 100));
+      newHeight = Math.floor(imageRef.current.naturalHeight * (resizeOptions.percentage / 100));
     } else {
       newWidth = resizeOptions.width;
       newHeight = resizeOptions.height;
     }
-
+  
     canvas.width = newWidth;
     canvas.height = newHeight;
     ctx.drawImage(imageRef.current, 0, 0, newWidth, newHeight);
@@ -87,74 +88,8 @@ const ImageCompressor: React.FC = () => {
     const dataUrl = canvas.toDataURL(`image/${format}`, quality / 100);
     setOutputImage(dataUrl);
   };
-
-  const applyCrop = (cropData: Crop) => {
-    if (!imageRef.current || !canvasRef.current || !cropData.width || !cropData.height) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const scaleX = imageRef.current.naturalWidth / imageRef.current.width;
-    const scaleY = imageRef.current.naturalHeight / imageRef.current.height;
-
-    canvas.width = Math.floor(cropData.width * scaleX);
-    canvas.height = Math.floor(cropData.height * scaleY);
-
-    ctx.drawImage(
-      imageRef.current,
-      Math.floor(cropData.x * scaleX),
-      Math.floor(cropData.y * scaleY),
-      Math.floor(cropData.width * scaleX),
-      Math.floor(cropData.height * scaleY),
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
-
-    const dataUrl = canvas.toDataURL(`image/${format}`, quality / 100);
-    setOutputImage(dataUrl);
-    setIsCropping(false);
-  };
-
-  const applyTransform = () => {
-    if (!imageRef.current || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const width = imageRef.current.naturalWidth;
-    const height = imageRef.current.naturalHeight;
-
-    canvas.width = width;
-    canvas.height = height;
-
-    ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate((rotation * Math.PI) / 180);
-    ctx.scale(flip.horizontal ? -1 : 1, flip.vertical ? -1 : 1);
-    ctx.translate(-width / 2, -height / 2);
-    ctx.drawImage(imageRef.current, 0, 0);
-    ctx.restore();
-
-    const dataUrl = canvas.toDataURL(`image/${format}`, quality / 100);
-    setOutputImage(dataUrl);
-  };
-
-  const handleApplyChanges = () => {
-    switch (activeTab) {
-      case 'resize':
-        handleResize();
-        break;
-      case 'crop':
-        applyCrop(crop);
-        break;
-      case 'transform':
-        applyTransform();
-        break;
-    }
-  };
-
+  
+  // Update ExportPanel section
   return (
     <div className="space-y-6">
       {!inputImage ? (
@@ -190,20 +125,26 @@ const ImageCompressor: React.FC = () => {
                 </button>
               ))}
             </div>
-
-            {activeTab === 'resize' && (
-              <ResizePanel
-                resizeOptions={resizeOptions}
-                setResizeOptions={setResizeOptions}
-              />
-            )}
-            {activeTab === 'transform' && (
-              <TransformPanel
-                handleRotate={handleRotate}
-                handleFlip={handleFlip}
-              />
-            )}
-            <ExportPanel format={format} setFormat={setFormat} />
+  // Inside the return statement, update the ExportPanel usage
+  {activeTab === 'resize' && (
+    <ResizePanel
+      resizeOptions={resizeOptions}
+      setResizeOptions={setResizeOptions}
+    />
+  )}
+  {activeTab === 'transform' && (
+    <TransformPanel
+      handleRotate={handleRotate}
+      handleFlip={handleFlip}
+    />
+  )}
+  <ExportPanel 
+    format={format} 
+    setFormat={setFormat}
+    quality={quality}
+    setQuality={setQuality}
+    onUpdate={handleResize}  // Add this prop
+  />
           </div>
 
           <div className="relative">

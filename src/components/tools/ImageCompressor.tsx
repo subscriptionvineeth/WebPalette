@@ -5,10 +5,8 @@ import ReactCrop, { Crop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
 interface ResizeOptions {
-  type: 'dimensions' | 'percentage';
   width: number;
   height: number;
-  percentage: number;
   maintainAspectRatio: boolean;
 }
 
@@ -30,10 +28,8 @@ const ImageCompressor: React.FC = () => {
   });
   const [isCropping, setIsCropping] = useState(false);
   const [resizeOptions, setResizeOptions] = useState<ResizeOptions>({
-    type: 'dimensions',
     width: 800,
     height: 600,
-    percentage: 100,
     maintainAspectRatio: true
   });
 
@@ -77,25 +73,41 @@ const ImageCompressor: React.FC = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
-    let newWidth, newHeight;
-    if (resizeOptions.type === 'percentage') {
-      const scale = resizeOptions.percentage / 100;
-      newWidth = Math.floor(imageRef.current.naturalWidth * scale);
-      newHeight = Math.floor(imageRef.current.naturalHeight * scale);
-    } else {
-      newWidth = resizeOptions.width;
-      newHeight = resizeOptions.height;
+  
+    let newWidth = resizeOptions.width;
+    let newHeight = resizeOptions.height;
+  
+    // Maintain aspect ratio if enabled
+    if (resizeOptions.maintainAspectRatio && imageRef.current) {
+      const originalAspectRatio = imageRef.current.naturalWidth / imageRef.current.naturalHeight;
+      const newAspectRatio = newWidth / newHeight;
+  
+      if (newAspectRatio > originalAspectRatio) {
+        newWidth = Math.round(newHeight * originalAspectRatio);
+      } else {
+        newHeight = Math.round(newWidth / originalAspectRatio);
+      }
     }
-
+  
     canvas.width = newWidth;
     canvas.height = newHeight;
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(imageRef.current, 0, 0, newWidth, newHeight);
+      
+    // Improved compression handling
+    const compressionQuality = Math.max(0.1, quality / 100); // Ensure minimum quality of 0.1
+    let dataUrl;
     
-    const compressionQuality = format === 'png' ? 1 : quality / 100;
-    const dataUrl = canvas.toDataURL(`image/${format}`, compressionQuality);
+    if (format === 'png') {
+      dataUrl = canvas.toDataURL('image/png');
+    } else if (format === 'jpeg') {
+      dataUrl = canvas.toDataURL('image/jpeg', compressionQuality);
+    } else {
+      // WebP with enhanced compression
+      dataUrl = canvas.toDataURL('image/webp', compressionQuality);
+    }
+    
     setOutputImage(dataUrl);
   }, [resizeOptions, format, quality]);
 
@@ -115,7 +127,7 @@ const ImageCompressor: React.FC = () => {
       const angle = value === 'cw' ? 90 : -90;
       setRotation((prev) => (prev + angle) % 360);
       ctx.rotate((rotation * Math.PI) / 180);
-    } else {
+    } else if (type === 'flip' && (value === 'horizontal' || value === 'vertical')) {
       setFlip(prev => ({
         ...prev,
         [value]: !prev[value]
@@ -223,80 +235,96 @@ const ImageCompressor: React.FC = () => {
             {activeTab === 'resize' && (
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Resize Settings</h3>
-                <div className="flex gap-2 mb-4">
-                  <button 
-                    onClick={() => setResizeOptions({ ...resizeOptions, type: 'dimensions' })}
-                    className={`px-4 py-2 rounded-lg ${resizeOptions.type === 'dimensions' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                  >
-                    By Dimensions
-                  </button>
-                  <button 
-                    onClick={() => setResizeOptions({ ...resizeOptions, type: 'percentage' })}
-                    className={`px-4 py-2 rounded-lg ${resizeOptions.type === 'percentage' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                  >
-                    As Percentage
-                  </button>
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="checkbox"
+                    id="maintainAspectRatio"
+                    checked={resizeOptions.maintainAspectRatio}
+                    onChange={(e) => setResizeOptions({
+                      ...resizeOptions,
+                      maintainAspectRatio: e.target.checked
+                    })}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="maintainAspectRatio" className="text-sm text-gray-600">
+                    Maintain aspect ratio
+                  </label>
                 </div>
 
-                {resizeOptions.type === 'dimensions' ? (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Width</label>
-                      <input
-                        type="number"
-                        value={resizeOptions.width}
-                        onChange={(e) => setResizeOptions({
-                          ...resizeOptions,
-                          width: Number(e.target.value)
-                        })}
-                        className="w-full p-2 border rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Height</label>
-                      <input
-                        type="number"
-                        value={resizeOptions.height}
-                        onChange={(e) => setResizeOptions({
-                          ...resizeOptions,
-                          height: Number(e.target.value)
-                        })}
-                        className="w-full p-2 border rounded-lg"
-                      />
-                    </div>
-                  </div>
-                ) : (
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Scale Percentage</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Width (px)</label>
                     <input
                       type="number"
-                      value={resizeOptions.percentage}
-                      onChange={(e) => setResizeOptions({
-                        ...resizeOptions,
-                        percentage: Number(e.target.value)
-                      })}
+                      value={resizeOptions.width}
+                      onChange={(e) => {
+                        const newWidth = Number(e.target.value);
+                        if (resizeOptions.maintainAspectRatio && imageRef.current) {
+                          const aspectRatio = imageRef.current.naturalWidth / imageRef.current.naturalHeight;
+                          setResizeOptions({
+                            ...resizeOptions,
+                            width: newWidth,
+                            height: Math.round(newWidth / aspectRatio)
+                          });
+                        } else {
+                          setResizeOptions({
+                            ...resizeOptions,
+                            width: newWidth
+                          });
+                        }
+                      }}
                       min="1"
-                      max="200"
                       className="w-full p-2 border rounded-lg"
                     />
                   </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Compression Quality
-                  </label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="100"
-                    value={quality}
-                    onChange={(e) => setQuality(Number(e.target.value))}
-                    className="w-full"
-                  />
-                  <div className="text-sm text-gray-500 text-right">
-                    {quality}% ({quality < 30 ? 'High Compression' : quality < 70 ? 'Medium Compression' : 'Low Compression'})
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Height (px)</label>
+                    <input
+                      type="number"
+                      value={resizeOptions.height}
+                      onChange={(e) => {
+                        const newHeight = Number(e.target.value);
+                        if (resizeOptions.maintainAspectRatio && imageRef.current) {
+                          const aspectRatio = imageRef.current.naturalWidth / imageRef.current.naturalHeight;
+                          setResizeOptions({
+                            ...resizeOptions,
+                            width: Math.round(newHeight * aspectRatio),
+                            height: newHeight
+                          });
+                        } else {
+                          setResizeOptions({
+                            ...resizeOptions,
+                            height: newHeight
+                          });
+                        }
+                      }}
+                      min="1"
+                      className="w-full p-2 border rounded-lg"
+                    />
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Compression Level
+                  </label>
+                  <div className="space-y-2">
+                    <input
+                      type="range"
+                      min="10"
+                      max="100"
+                      value={quality}
+                      onChange={(e) => setQuality(Number(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>Smallest file</span>
+                      <span>{quality}%</span>
+                      <span>Best quality</span>
+                    </div>
+                  </div>
+                </div>
+
                 <button
                   onClick={handleResize}
                   className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -306,7 +334,7 @@ const ImageCompressor: React.FC = () => {
               </div>
             )}
 
-            {activeTab === 'transform' && (
+{activeTab === 'transform' && (
               <div className="space-y-4">
                 <div className="flex gap-2">
                   <button
@@ -338,20 +366,41 @@ const ImageCompressor: React.FC = () => {
             )}
 
             {activeTab === 'crop' && (
-              <button
-                onClick={() => {
-                  handleCropComplete(crop);
-                  if (outputImage) {
-                    const link = document.createElement('a');
-                    link.href = outputImage;
-                    link.download = `cropped-image.${format}`;
-                    link.click();
-                  }
-                }}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Crop
-              </button>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm text-gray-700">Export Format:</h4>
+                  <div className="flex gap-3">
+                    {['webp', 'png', 'jpeg'].map((fmt) => (
+                      <label key={fmt} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedFormats.includes(fmt as any)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedFormats([...selectedFormats, fmt as any]);
+                            } else {
+                              setSelectedFormats(selectedFormats.filter(f => f !== fmt));
+                            }
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-600 uppercase">{fmt}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    handleCropComplete(crop);
+                    handleDownload();
+                  }}
+                  disabled={selectedFormats.length === 0}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Crop & Download
+                </button>
+              </div>
             )}
           </div>
 
