@@ -107,10 +107,11 @@ function App() {
         : 'bg-gradient-to-br from-slate-50 via-white to-indigo-50'
       }`}
     >
-      <nav className={`${isDarkMode 
+      <nav className={`backdrop-blur-sm border-b fixed w-full top-0 z-[100] transition-colors duration-200
+        ${isDarkMode 
           ? 'bg-gray-800/80 border-gray-700' 
           : 'bg-white/80 border-gray-100'
-        } backdrop-blur-sm border-b fixed w-full top-0 z-50 transition-colors duration-200`}>
+        }`}>
         <div className="max-w-[1440px] mx-auto px-2 sm:px-4">
           <div className="flex items-center justify-between h-16">
             <div className="flex-shrink-0">
@@ -187,9 +188,11 @@ function App() {
             </div>
           </div>
 
-          <div className={`xl:hidden transition-all duration-300 ease-in-out
-            ${isMenuOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
-            <div className="py-2 space-y-1">
+          {/* Update mobile menu div */}
+          <div className={`xl:hidden transition-all duration-300 ease-in-out absolute w-full left-0 right-0 top-16 
+            ${isDarkMode ? 'bg-gray-800/95' : 'bg-white/95'} backdrop-blur-sm
+            ${isMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+            <div className="py-2 space-y-1 max-h-[calc(100vh-4rem)] overflow-y-auto">
               {tools.map((tool) => {
                 const Icon = tool.icon;
                 return (
@@ -224,14 +227,14 @@ function App() {
         </div>
       </nav>
 
-      <main className="pt-24 pb-12 px-4 sm:px-6">
+      <main className="pt-24 pb-12 px-4 sm:px-6 relative">
         <div className="max-w-[1440px] mx-auto">
           <div className={`tool-content backdrop-blur-sm p-6 sm:p-8 rounded-2xl shadow-xl border 
             transition-all duration-300 animate-fade-in
             ${isDarkMode
               ? 'bg-gray-800/95 border-gray-700'
-              : 'bg-white/95 border-gray-100/50'
-            }`}
+              : 'bg-white/95 border-gray-100/50'}
+            ${isMenuOpen ? 'pointer-events-none' : 'pointer-events-auto'}`}
           >
             <div className="flex items-center gap-3 mb-6 sm:mb-8">
               {tools.find(t => t.id === activeTool)?.icon && (
